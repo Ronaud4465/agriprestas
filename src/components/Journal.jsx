@@ -1,6 +1,6 @@
 import { fmMin, fmDate, moisLabel } from "../App";
 
-export default function Journal({ days, cfg, onDelete, onClear, onFacture }) {
+export default function Journal({ days, cfg, onDelete, onClear, onFacture, onEdit }) {
   const totalNet  = days.reduce((s, d) => s + d.net,  0);
   const totalHTVA = days.reduce((s, d) => s + d.htva, 0);
 
@@ -40,10 +40,18 @@ export default function Journal({ days, cfg, onDelete, onClear, onFacture }) {
                     <td>{d.trav || "—"}</td>
                     <td className="mono bold">{d.htva.toFixed(2)} €</td>
                     <td>
-                      <button className="btn danger small"
-                        onClick={() => { if (window.confirm("Supprimer cette journée ?")) onDelete(d.id); }}>
-                        ✕
-                      </button>
+                      <div style={{ display: "flex", gap: "4px" }}>
+                        <button
+                          className="btn-icon edit"
+                          title="Modifier"
+                          onClick={() => onEdit(d)}
+                        >✏️</button>
+                        <button
+                          className="btn-icon delete"
+                          title="Supprimer"
+                          onClick={() => { if (window.confirm("Supprimer cette journée ?")) onDelete(d.id); }}
+                        >✕</button>
+                      </div>
                     </td>
                   </tr>
                 ))}

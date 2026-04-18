@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toMin, fmMin, todayStr } from "../App";
 
 const PAUSE_KEY = "agriprestas_pause";
@@ -8,7 +8,7 @@ function loadPause() {
   catch { return 30; }
 }
 
-export default function Saisie({ cfg, onAdd, showToast }) {
+export default function Saisie({ cfg, onAdd, onUpdate, editDay, clearEdit, showToast }) {
   const [form, setForm] = useState({
     date: todayStr(), deb: "", fin: "", lieu: "", trav: "", note: ""
   });
@@ -16,6 +16,21 @@ export default function Saisie({ cfg, onAdd, showToast }) {
 
   const taux = parseFloat(cfg.taux) || 0;
   const mini = parseFloat(cfg.mini) || 0;
+
+  // Quand on clique sur ✏️ dans le journal, on charge la journée dans le formulaire
+  useEffect(() => {
+    if (editDay) {
+      setForm({
+        date: editDay.date,
+        deb:  editDay.deb,
+        fin:  editDay.fin,
+        lieu: editDay.lieu,
+        trav: editDay.trav || "",
+        note: editDay.note || ""
+      });
+      setPause(editDay.pause || 30);
+    }
+  }, [editDay]);
 
   function handlePauseChange(val) {
     const p = Math.max(0, parseInt(val) || 0);
@@ -34,24 +49,54 @@ export default function Saisie({ cfg, onAdd, showToast }) {
 
   const prev = calcDay(form.deb, form.fin);
 
-  function handleAdd() {
+  function handleSubmit() {
     if (!form.date || !form.deb || !form.fin || !form.lieu.trim()) {
       showToast("⚠️ Date, heures et lieu sont obligatoires");
       return;
     }
     const { brut, net, htva } = calcDay(form.deb, form.fin);
-    onAdd({
-      id: Date.now(), date: form.date, deb: form.deb, fin: form.fin,
+    const jour = {
+      date: form.date, deb: form.deb, fin: form.fin,
       brut, net, lieu: form.lieu.trim(), trav: form.trav.trim(),
       note: form.note.trim(), taux, mini, pause, htva
-    });
+    };
+
+    if (editDay) {
+      // Mode modification : on met à jour la journée existante
+      onUpdate({ ...jour, id: editDay.id });
+      clearEdit();
+      showToast("✅ Journée modifiée !");
+    } else {
+      // Mode ajout normal
+      onAdd({ ...jour, id: Date.now() });
+    }
+    setForm({ date: todayStr(), deb: "", fin: "", lieu: "", trav: "", note: "" });
+  }
+
+  function handleCancel() {
+    clearEdit();
     setForm({ date: todayStr(), deb: "", fin: "", lieu: "", trav: "", note: "" });
   }
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const isEdit = !!editDay;
 
   return (
     <div>
+      {/* Bandeau mode modification */}
+      {isEdit && (
+        <div style={{
+          background: "#fff3cd", border: "1.5px solid #c8a84b",
+          borderRadius: "12px", padding: "12px 16px", marginBottom: "12px",
+          display: "flex", alignItems: "center", justifyContent: "space-between"
+        }}>
+          <span style={{ fontSize: "13px", fontWeight: "600", color: "#7a5c3a" }}>
+            ✏️ Mode modification — journée du {form.date}
+          </span>
+          <button className="btn danger small" onClick={handleCancel}>Annuler</button>
+        </div>
+      )}
+
       <div className="card">
         <div className="card-title">📅 Journée de travail</div>
         <div className="g3">
@@ -151,13 +196,13 @@ export default function Saisie({ cfg, onAdd, showToast }) {
       </div>
 
       <div className="acts">
-        <button className="btn primary" onClick={handleAdd}>
-          ✅ Ajouter cette journée
+        <button className="btn primary" onClick={handleSubmit}>
+          {isEdit ? "💾 Enregistrer la modification" : "✅ Ajouter cette journée"}
         </button>
-        <button className="btn" onClick={() =>
+        <button className="btn" onClick={isEdit ? handleCancel : () =>
           setForm({ date: todayStr(), deb: "", fin: "", lieu: "", trav: "", note: "" })
         }>
-          Effacer
+          {isEdit ? "Annuler" : "Effacer"}
         </button>
       </div>
     </div>
