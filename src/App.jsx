@@ -55,19 +55,29 @@ export default function App() {
     return c;
   });
   const [toast, setToast] = useState("");
+  const [editDay, setEditDay] = useState(null);
 
   useEffect(() => { saveLS(DAYS_KEY, days); }, [days]);
   useEffect(() => { saveLS(CFG_KEY, cfg); }, [cfg]);
 
-  function showToast(msg) {
-    setToast(msg);
-    setTimeout(() => setToast(""), 2800);
-  }
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(""), 2800);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  function showToast(msg) { setToast(msg); }
 
   function addDay(jour) {
     const newDays = [...days, jour].sort((a,b) => a.date.localeCompare(b.date));
     setDays(newDays);
     showToast("✅ Journée ajoutée !");
+  }
+
+  function updateDay(jour) {
+    const newDays = days.map(d => d.id === jour.id ? jour : d)
+                        .sort((a,b) => a.date.localeCompare(b.date));
+    setDays(newDays);
   }
 
   function deleteDay(id) {
@@ -78,6 +88,12 @@ export default function App() {
   function clearDays() {
     setDays([]);
     showToast("🗑️ Journal effacé");
+  }
+
+  // Quand on clique ✏️ : on charge la journée et on bascule sur l'onglet Saisie
+  function handleEdit(jour) {
+    setEditDay(jour);
+    setTab("saisie");
   }
 
   const tabs = [
@@ -107,8 +123,26 @@ export default function App() {
         ))}
       </nav>
 
-      {tab === "saisie"  && <Saisie  cfg={cfg} onAdd={addDay} showToast={showToast} />}
-      {tab === "journal" && <Journal days={days} cfg={cfg} onDelete={deleteDay} onClear={clearDays} onFacture={() => setTab("facture")} />}
+      {tab === "saisie"  && (
+        <Saisie
+          cfg={cfg}
+          onAdd={addDay}
+          onUpdate={updateDay}
+          editDay={editDay}
+          clearEdit={() => setEditDay(null)}
+          showToast={showToast}
+        />
+      )}
+      {tab === "journal" && (
+        <Journal
+          days={days}
+          cfg={cfg}
+          onDelete={deleteDay}
+          onClear={clearDays}
+          onFacture={() => setTab("facture")}
+          onEdit={handleEdit}
+        />
+      )}
       {tab === "facture" && <Facture days={days} cfg={cfg} />}
       {tab === "config"  && <Config  cfg={cfg} onChange={setCfg} showToast={showToast} />}
 
