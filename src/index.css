@@ -168,7 +168,7 @@ body {
 .btn.print-btn { background: #1a73e8; color: #fff; border-color: #1a73e8; font-size: 15px; padding: 13px 22px; width: 100%; justify-content: center; }
 .btn.print-btn:hover { background: #1557b0; }
 
-/* ICON BUTTONS (✏️ et ✕ dans le tableau) */
+/* ICON BUTTONS */
 .btn-icon {
   width: 28px; height: 28px;
   border-radius: 6px;
@@ -181,12 +181,38 @@ body {
   transition: all .15s;
   background: #fff9f0;
 }
-.btn-icon.edit  { color: #7a5c3a; }
 .btn-icon.edit:hover  { background: #fff3cd; border-color: #c8a84b; }
 .btn-icon.delete { color: #c0392b; }
 .btn-icon.delete:hover { background: #fad7d7; border-color: #f5c6c6; }
 
 .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+
+/* MONTH FILTER */
+.month-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.month-btn {
+  padding: 6px 14px;
+  border: 1.5px solid #d4c4b0;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  background: #faf6ef;
+  color: #7a5c3a;
+  font-family: inherit;
+  transition: all .15s;
+}
+.month-btn.on {
+  background: #5c7a3e;
+  color: #fff;
+  border-color: #5c7a3e;
+}
+.month-btn.light { color: rgba(255,255,255,.8); background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.3); }
+.month-btn.light.on { background: #fff; color: #3d2b1f; border-color: #fff; }
 
 /* STATS */
 .stats-grid {
@@ -215,6 +241,19 @@ tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: #f5edd8; }
 td.mono { font-family: 'Courier New', monospace; font-size: 11px; }
 td.bold { font-weight: 700; }
+
+/* TOTAL ROW IN JOURNAL */
+.total-row td { background: #e8d5a0; font-weight: 700; padding: 8px 10px; }
+
+/* NOTE ROW */
+.note-row { background: #fffbf0 !important; }
+.note-cell {
+  padding: 4px 10px 8px 28px !important;
+  font-size: 11px;
+  color: #7a5c3a;
+  border-bottom: 1px solid #d4c4b0;
+  font-style: italic;
+}
 
 /* MISC */
 .empty { text-align: center; padding: 28px 18px; color: #9a8878; font-size: 13px; line-height: 1.6; }
@@ -277,15 +316,34 @@ td.bold { font-weight: 700; }
 .f-footer { margin-top: 26px; padding-top: 12px; border-top: 1px solid #d4c4b0; color: #aaa; font-size: 10px; text-align: center; }
 
 /* PRINT */
+.print-only { display: none; }
+
 @media print {
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   body { background: #fff !important; padding: 0 !important; }
   .no-print { display: none !important; }
+  .print-only { display: block !important; }
   .app-header, .tab-bar, .acts, .print-banner { display: none !important; }
   .app { padding: 0 !important; max-width: 100% !important; }
+  .card { border: none !important; border-radius: 0 !important; padding: 0 !important; }
   .facture-zone { border: none !important; border-radius: 0 !important; padding: 8mm 12mm !important; }
   .f-table thead { background: #3d2b1f !important; }
   .f-total-row td { background: #e8d5a0 !important; }
   .f-grand td { background: #3d2b1f !important; }
+  .total-row td { background: #e8d5a0 !important; }
+  .note-row { background: #fffbf0 !important; }
+
+  /* TITRE JOURNAL À L'IMPRESSION */
+  .journal-print-title {
+    font-family: Georgia, serif;
+    font-size: 18px;
+    color: #3d2b1f;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #5c7a3e;
+  }
+  .stats-grid { margin-bottom: 14px; }
+  .stat-card { border: 1px solid #d4c4b0 !important; }
+
   @page { margin: 0; size: A4 portrait; }
 }
