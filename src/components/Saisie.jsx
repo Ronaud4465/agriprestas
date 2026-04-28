@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { toMin, fmMin, todayStr } from "../App";
 
-const PAUSE_KEY = "agriprestas_pause";
+const PAUSE_KEY = "fieldlog_pause";
 
 function loadPause() {
   try {
     const v = localStorage.getItem(PAUSE_KEY);
-    if (v === null) return 30;
-    return parseInt(v);
+    if (v === null || v === undefined) return 30;
+    const n = parseInt(v);
+    return isNaN(n) ? 30 : n;
   } catch { return 30; }
 }
 
@@ -15,10 +16,11 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
   const [form, setForm] = useState({
     date: todayStr(), deb: "", fin: "", lieu: "", trav: "", note: "", clientId: ""
   });
-  const [pause, setPause] = useState(loadPause);
+  const [pauseStr, setPauseStr] = useState(String(loadPause()));
 
   const taux = parseFloat(cfg.taux) || 0;
   const mini = parseFloat(cfg.mini) || 0;
+  const pause = pauseStr === "" ? 0 : (parseInt(pauseStr) || 0);
 
   useEffect(() => {
     const src = editDay || copyDay;
@@ -32,14 +34,19 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
         note:     src.note || "",
         clientId: src.clientId || ""
       });
-      setPause(src.pause !== undefined ? src.pause : 30);
+      setPauseStr(String(src.pause !== undefined && src.pause !== null ? src.pause : 30));
     }
   }, [editDay, copyDay]);
 
   function handlePauseChange(val) {
-    const p = val === "" ? 0 : Math.max(0, parseInt(val) || 0);
-    setPause(p);
-    try { localStorage.setItem(PAUSE_KEY, String(p)); } catch {}
+    // Accepte chaîne vide (en cours de frappe) ou nombre
+    if (val === "" || val === "0" || /^[0-9]+$/.test(val)) {
+      setPauseStr(val);
+      const n = val === "" ? 0 : parseInt(val);
+      if (!isNaN(n)) {
+        try { localStorage.setItem(PAUSE_KEY, String(n)); } catch {}
+      }
+    }
   }
 
   function calcDay(deb, fin) {
@@ -65,7 +72,6 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
       note: form.note.trim(), clientId: form.clientId,
       taux, mini, pause, htva
     };
-
     if (editDay) {
       onUpdate({ ...jour, id: editDay.id });
       clearEdit();
@@ -80,10 +86,7 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
     setForm({ date: todayStr(), deb: "", fin: "", lieu: "", trav: "", note: "", clientId: "" });
   }
 
-  function handleCancel() {
-    clearEdit();
-    resetForm();
-  }
+  function handleCancel() { clearEdit(); resetForm(); }
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const isEdit = !!editDay;
@@ -94,7 +97,7 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
       {(isEdit || isCopy) && (
         <div style={{
           background: isEdit ? "#fff3cd" : "#e8f4fd",
-          border: `1.5px solid ${isEdit ? "#c8a84b" : "#3498db"}`,
+          border: `1.5px solid ${isEdit ? "#8b6914" : "#3498db"}`,
           borderRadius: "12px", padding: "12px 16px", marginBottom: "12px",
           display: "flex", alignItems: "center", justifyContent: "space-between"
         }}>
@@ -108,15 +111,9 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
       <div className="card">
         <div className="card-title">📅 Journée de travail</div>
         <div className="g3">
-          <Field label="Date">
-            <input className="inp" type="date" value={form.date} onChange={e => set("date", e.target.value)} />
-          </Field>
-          <Field label="Heure départ">
-            <input className="inp" type="time" value={form.deb} onChange={e => set("deb", e.target.value)} />
-          </Field>
-          <Field label="Heure fin">
-            <input className="inp" type="time" value={form.fin} onChange={e => set("fin", e.target.value)} />
-          </Field>
+          <Field label="Date"><input className="inp" type="date" value={form.date} onChange={e => set("date", e.target.value)} /></Field>
+          <Field label="Heure départ"><input className="inp" type="time" value={form.deb} onChange={e => set("deb", e.target.value)} /></Field>
+          <Field label="Heure fin"><input className="inp" type="time" value={form.fin} onChange={e => set("fin", e.target.value)} /></Field>
         </div>
       </div>
 
@@ -131,15 +128,14 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
               className="inp"
               type="text"
               inputMode="numeric"
-              pattern="[0-9]*"
-              value={String(pause)}
-              placeholder="0"
+              value={pauseStr}
+              placeholder="ex: 30"
               onChange={e => handlePauseChange(e.target.value)}
-              style={{ background: "#fff3cd", borderColor: "#c8a84b", fontWeight: "600" }}
+              style={{ background: "#fff8e1", borderColor: "var(--color-secondary)", fontWeight: "600" }}
             />
           </Field>
           <Field label="H. facturables">
-            <div className="ro">{prev.net > 0 ? fmMin(prev.net) : fmMin(0)}</div>
+            <div className="ro">{prev.brut > 0 ? fmMin(prev.net) : "—"}</div>
           </Field>
         </div>
         <div className="res-box">
@@ -169,29 +165,18 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
             </select>
           </Field>
         ) : (
-          <p style={{ fontSize: "12px", color: "#9a8878" }}>
-            👉 Ajoutez vos clients dans l'onglet ⚙️ Config
-          </p>
+          <p style={{ fontSize: "12px", color: "#9a8878" }}>👉 Ajoutez vos clients dans l'onglet ⚙️ Config</p>
         )}
       </div>
 
       <div className="card">
         <div className="card-title">📍 Chantier</div>
         <div className="g2">
-          <Field label="Lieu / Exploitation">
-            <input className="inp" type="text" value={form.lieu} placeholder="Ferme Dupont – La Chapelle"
-              onChange={e => set("lieu", e.target.value)} />
-          </Field>
-          <Field label="Nature des travaux">
-            <input className="inp" type="text" value={form.trav} placeholder="Labour, fauchage, semis…"
-              onChange={e => set("trav", e.target.value)} />
-          </Field>
+          <Field label="Lieu / Exploitation"><input className="inp" type="text" value={form.lieu} placeholder="Ferme Dupont – La Chapelle" onChange={e => set("lieu", e.target.value)} /></Field>
+          <Field label="Nature des travaux"><input className="inp" type="text" value={form.trav} placeholder="Labour, fauchage, semis…" onChange={e => set("trav", e.target.value)} /></Field>
         </div>
         <div style={{ marginTop: "10px" }}>
-          <Field label="Remarques">
-            <input className="inp" type="text" value={form.note} placeholder="Météo, incident, matériel…"
-              onChange={e => set("note", e.target.value)} />
-          </Field>
+          <Field label="Remarques"><input className="inp" type="text" value={form.note} placeholder="Météo, incident, matériel…" onChange={e => set("note", e.target.value)} /></Field>
         </div>
       </div>
 
@@ -202,9 +187,7 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
           <Field label="Minimum €/jour"><div className="ro">{cfg.mini||"—"} €</div></Field>
           <Field label="TVA %"><div className="ro">{cfg.tvap||"21"} %</div></Field>
         </div>
-        <p style={{ fontSize: "11px", color: "#9a8878", marginTop: "8px" }}>
-          👉 Modifiez dans l'onglet ⚙️ Config
-        </p>
+        <p style={{ fontSize: "11px", color: "#9a8878", marginTop: "8px" }}>👉 Modifiez dans l'onglet ⚙️ Config</p>
       </div>
 
       <div className="acts">
