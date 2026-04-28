@@ -129,11 +129,11 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
           <Field label="⏸️ Pause midi (min)">
             <input
               className="inp"
-              type="number"
-              value={pause === 0 ? "0" : pause}
-              min="0"
-              max="120"
-              step="5"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={String(pause)}
+              placeholder="0"
               onChange={e => handlePauseChange(e.target.value)}
               style={{ background: "#fff3cd", borderColor: "#c8a84b", fontWeight: "600" }}
             />
