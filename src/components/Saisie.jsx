@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { toMin, fmMin, todayStr } from "../App";
 
-const PAUSE_KEY = "fieldlog_pause";
+const PAUSE_KEY = "agriprestas_pause";
 
 function loadPause() {
   try {
