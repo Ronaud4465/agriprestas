@@ -5,10 +5,10 @@ import Facture from "./components/Facture";
 import Config from "./components/Config";
 import Toast from "./components/Toast";
 
-const DAYS_KEY    = "fieldlog_days";
-const CFG_KEY     = "fieldlog_cfg";
-const ARCHIVE_KEY = "fieldlog_archive";
-const CLIENTS_KEY = "fieldlog_clients";
+const DAYS_KEY    = "agriprestas_days";
+const CFG_KEY     = "agriprestas_cfg";
+const ARCHIVE_KEY = "agriprestas_archive";
+const CLIENTS_KEY = "agriprestas_clients";
 
 export const defaultCfg = {
   nom: "", metier: "Conductrice de tracteur indépendante",
