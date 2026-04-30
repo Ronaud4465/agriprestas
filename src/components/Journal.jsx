@@ -10,15 +10,21 @@ function getMonths(days) {
   return Object.keys(months).sort();
 }
 
+// Affiche la pause correctement — 0 doit s'afficher comme "0 min"
+function displayPause(d) {
+  if (d.pause === 0 || d.pause === "0") return "0 min";
+  if (d.pause === null || d.pause === undefined) return "30 min";
+  return d.pause + " min";
+}
+
 export default function Journal({ days, cfg, clients, onDelete, onClear, onFacture, onEdit, onCopy, onArchiver }) {
   const [filterMois, setFilterMois] = useState("tout");
   const [filterClient, setFilterClient] = useState("tout");
 
   const months = getMonths(days);
 
-  // Clients présents dans le journal
   const clientsInJournal = clients.filter(c =>
-    days.some(d => d.clientId === String(c.id) || d.clientId === c.id)
+    days.some(d => String(d.clientId) === String(c.id))
   );
 
   let filteredDays = days;
@@ -65,8 +71,6 @@ export default function Journal({ days, cfg, clients, onDelete, onClear, onFactu
         {/* TITRE IMPRESSION */}
         <div className="print-only journal-print-title">
           Journal — {filterMois === "tout" ? "Tous les mois" : moisLabel(filterMois)}
-          {filterClient !== "tout" && clients.find(c => String(c.id) === filterClient)
-            ? ` · ${clients.find(c => String(c.id) === filterClient).nom}` : ""}
           {cfg.nom && <span style={{ float: "right" }}>{cfg.nom}</span>}
         </div>
 
@@ -91,11 +95,11 @@ export default function Journal({ days, cfg, clients, onDelete, onClear, onFactu
                         <td className="mono">{fmDate(d.date)}</td>
                         <td className="mono">{d.deb}</td>
                         <td className="mono">{d.fin}</td>
-                        <td className="mono">{d.pause||30}min</td>
+                        <td className="mono">{displayPause(d)}</td>
                         <td className="mono bold">{fmMin(d.net)}</td>
                         <td>{client ? client.nom : "—"}</td>
                         <td>{d.lieu}</td>
-                        <td>{d.trav||"—"}</td>
+                        <td>{d.trav || "—"}</td>
                         <td className="mono bold">{d.htva.toFixed(2)} €</td>
                         <td className="no-print">
                           <div style={{ display: "flex", gap: "3px" }}>
@@ -108,8 +112,7 @@ export default function Journal({ days, cfg, clients, onDelete, onClear, onFactu
                       </tr>
                       {d.note && (
                         <tr key={`note-${d.id}`} className="note-row">
-                          <td colSpan={10} className="note-cell no-print">📝 <em>{d.note}</em></td>
-                          <td colSpan={10} className="note-cell print-only">📝 <em>{d.note}</em></td>
+                          <td colSpan={10} className="note-cell">📝 <em>{d.note}</em></td>
                         </tr>
                       )}
                     </>
