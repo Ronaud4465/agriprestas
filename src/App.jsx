@@ -7,11 +7,6 @@ import Facture from "./components/Facture";
 import Config from "./components/Config";
 import Toast from "./components/Toast";
 
-const DAYS_KEY    = "agriprestas_days";
-const CFG_KEY     = "agriprestas_cfg";
-const ARCHIVE_KEY = "agriprestas_archive";
-const CLIENTS_KEY = "agriprestas_clients";
-
 export const defaultCfg = {
   nom: "", metier: "Conductrice de tracteur indépendante",
   adr1: "", adr2: "", tel: "", email: "",
@@ -63,7 +58,6 @@ export default function App() {
   const [copyDay, setCopyDay] = useState(null);
   const [syncing, setSyncing] = useState(false);
 
-  // Auth listener
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -78,12 +72,10 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Charger les données depuis Supabase quand connecté
   useEffect(() => {
     if (session?.user) loadAllData(session.user.id);
   }, [session]);
 
-  // Appliquer les couleurs personnalisées
   useEffect(() => {
     document.documentElement.style.setProperty("--color-primary", cfg.couleurPrimaire || "#2d5a27");
     document.documentElement.style.setProperty("--color-secondary", cfg.couleurSecondaire || "#8b6914");
@@ -100,31 +92,26 @@ export default function App() {
   async function loadAllData(userId) {
     setSyncing(true);
     try {
-      // Charger journées
       const { data: joursData } = await supabase
         .from("journees").select("*").eq("user_id", userId).order("date");
       if (joursData) {
-        const mapped = joursData.map(r => ({
+        setDays(joursData.map(r => ({
           id: r.id, date: r.date, deb: r.deb, fin: r.fin,
           brut: r.brut, net: r.net, lieu: r.lieu, trav: r.trav,
           note: r.note, clientId: r.client_id, taux: r.taux,
           mini: r.mini, pause: r.pause, htva: r.htva
-        }));
-        setDays(mapped);
+        })));
       }
 
-      // Charger clients
       const { data: clientsData } = await supabase
         .from("clients").select("*").eq("user_id", userId);
       if (clientsData) {
-        const mapped = clientsData.map(r => ({
+        setClients(clientsData.map(r => ({
           id: r.id, nom: r.nom, localite: r.localite,
           adr1: r.adr1, adr2: r.adr2, tva: r.tva
-        }));
-        setClients(mapped);
+        })));
       }
 
-      // Charger config
       const { data: cfgData } = await supabase
         .from("configs").select("*").eq("user_id", userId).single();
       if (cfgData?.data) {
@@ -133,20 +120,16 @@ export default function App() {
         if (!c.fnum) c.fnum = `${new Date().getFullYear()}-001`;
         setCfg(c);
       } else {
-        // Première connexion — initialiser config
-        const c = { ...defaultCfg, mois: getDefaultMois(), fnum: `${new Date().getFullYear()}-001` };
-        setCfg(c);
+        setCfg({ ...defaultCfg, mois: getDefaultMois(), fnum: `${new Date().getFullYear()}-001` });
       }
 
-      // Charger archives
       const { data: archivesData } = await supabase
         .from("archives").select("*").eq("user_id", userId).order("archived_at");
       if (archivesData) {
-        const mapped = archivesData.map(r => ({
+        setArchive(archivesData.map(r => ({
           mois: r.mois, label: r.label,
           days: r.data?.days || [], archivedAt: r.archived_at
-        }));
-        setArchive(mapped);
+        })));
       }
     } catch (e) {
       showToast("⚠️ Erreur de chargement");
@@ -179,9 +162,7 @@ export default function App() {
     };
     const { error } = await supabase.from("journees").update(row).eq("id", jour.id).eq("user_id", userId);
     if (error) { showToast("⚠️ Erreur mise à jour"); return; }
-    const newDays = days.map(d => d.id === jour.id ? jour : d)
-                        .sort((a,b) => a.date.localeCompare(b.date));
-    setDays(newDays);
+    setDays(days.map(d => d.id === jour.id ? jour : d).sort((a,b) => a.date.localeCompare(b.date)));
   }
 
   async function deleteDay(id) {
@@ -210,34 +191,25 @@ export default function App() {
     const mois = cfg.mois || getDefaultMois();
     const label = moisLabel(mois);
 
-    const { error } = await supabase.from("archives").upsert({
+    const { error } = await supabase.from("archives").insert({
       user_id: userId, mois, label,
       data: { days: [...days] },
       archived_at: new Date().toISOString()
-    }, { onConflict: "user_id,mois" });
+    });
 
     if (error) { showToast("⚠️ Erreur archivage"); return; }
 
-    // Supprimer les journées du mois
     await supabase.from("journees").delete().eq("user_id", userId);
     setDays([]);
 
-    // Mettre à jour l'archive locale
-    const existing = archive.findIndex(a => a.mois === mois);
-    if (existing >= 0) {
-      setArchive(archive.map((a,i) => i === existing ? { ...a, days: [...days] } : a));
-    } else {
-      setArchive([...archive, { mois, label, days: [...days], archivedAt: new Date().toISOString() }]);
-    }
+    setArchive([...archive, { mois, label, days: [...days], archivedAt: new Date().toISOString() }]);
 
-    // Avancer le mois et le numéro de facture
     const parts = (cfg.fnum || "2025-001").split("-");
     const newNum = parts.length === 2
       ? `${parts[0]}-${String(parseInt(parts[1])+1).padStart(3,"0")}` : cfg.fnum;
     const [y, m] = mois.split("-").map(Number);
     const next = m === 12 ? `${y+1}-01` : `${y}-${String(m+1).padStart(2,"0")}`;
-    const newCfg = { ...cfg, mois: next, fnum: newNum };
-    await saveCfg(newCfg);
+    await saveCfg({ ...cfg, mois: next, fnum: newNum });
     showToast(`✅ ${label} archivé !`);
   }
 
@@ -247,17 +219,14 @@ export default function App() {
   async function saveClient(client) {
     const userId = session.user.id;
     if (client.id && clients.find(c => c.id === client.id)) {
-      // Update
       await supabase.from("clients").update({
         nom: client.nom, localite: client.localite,
         adr1: client.adr1, adr2: client.adr2, tva: client.tva
       }).eq("id", client.id).eq("user_id", userId);
       setClients(clients.map(c => c.id === client.id ? client : c));
     } else {
-      // Insert
       const newId = Date.now();
-      const row = { id: newId, user_id: userId, nom: client.nom, localite: client.localite, adr1: client.adr1, adr2: client.adr2, tva: client.tva };
-      await supabase.from("clients").insert(row);
+      await supabase.from("clients").insert({ id: newId, user_id: userId, nom: client.nom, localite: client.localite, adr1: client.adr1, adr2: client.adr2, tva: client.tva });
       setClients([...clients, { ...client, id: newId }]);
     }
   }
@@ -333,7 +302,6 @@ export default function App() {
         <Config cfg={cfg} clients={clients} onChange={saveCfg}
           onSaveClient={saveClient} onDeleteClient={deleteClient} showToast={showToast} />
       )}
-
       <Toast message={toast} />
     </div>
   );
@@ -375,7 +343,6 @@ function ArchiveMois({ mois, cfg, clients }) {
   const totalHTVA = days.reduce((s,d) => s+d.htva, 0);
   const totalTVA  = totalHTVA * tvr / 100;
   const totalTTC  = totalHTVA + totalTVA;
-
   return (
     <div>
       <div className="print-banner no-print">
