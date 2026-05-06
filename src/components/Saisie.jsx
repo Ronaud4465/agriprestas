@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { toMin, fmMin, todayStr } from "../App";
+import { supabase } from "../supabase";
 
 const PAUSE_KEY = "agriprestas_pause";
 
@@ -12,14 +13,60 @@ function loadPause() {
   } catch { return 30; }
 }
 
-export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay, clearEdit, showToast }) {
+function SmartInput({ className, value, onChange, placeholder, suggestions = [], ...rest }) {
+  const id = "dl-" + Math.random().toString(36).slice(2);
+  return (
+    <>
+      <input
+        className={className}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        list={id}
+        autoComplete="off"
+        {...rest}
+      />
+      <datalist id={id}>
+        {suggestions.filter(s => s && s.trim()).map((s, i) => (
+          <option key={i} value={s} />
+        ))}
+      </datalist>
+    </>
+  );
+}
+
+export default function Saisie({ cfg, clients, session, onAdd, onUpdate, editDay, copyDay, clearEdit, showToast }) {
   const [form, setForm] = useState({
     date: todayStr(), deb: "", fin: "", lieu: "", trav: "", note: "", clientId: ""
   });
   const [pauseStr, setPauseStr] = useState(String(loadPause()));
+  const [tauxLocal, setTauxLocal] = useState("");
+  const [miniLocal, setMiniLocal] = useState("");
+  const [lieuxHisto, setLieuxHisto] = useState([]);
+  const [travHisto, setTravHisto] = useState([]);
 
-  const taux = parseFloat(cfg.taux) || 0;
-  const mini = parseFloat(cfg.mini) || 0;
+  useEffect(() => {
+    if (!session?.user) return;
+    async function loadHisto() {
+      const { data } = await supabase
+        .from("journees")
+        .select("lieu, trav")
+        .eq("user_id", session.user.id);
+      if (data) {
+        setLieuxHisto([...new Set(data.map(d => d.lieu).filter(Boolean))]);
+        setTravHisto([...new Set(data.map(d => d.trav).filter(Boolean))]);
+      }
+    }
+    loadHisto();
+  }, [session]);
+
+  useEffect(() => {
+    setTauxLocal(String(cfg.taux || ""));
+    setMiniLocal(String(cfg.mini || ""));
+  }, [cfg.taux, cfg.mini]);
+
+  const taux = parseFloat(tauxLocal) || 0;
+  const mini = parseFloat(miniLocal) || 0;
   const pause = pauseStr === "" ? 0 : (parseInt(pauseStr) || 0);
 
   useEffect(() => {
@@ -35,12 +82,13 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
         clientId: src.clientId || ""
       });
       setPauseStr(String(src.pause !== undefined && src.pause !== null ? src.pause : 30));
+      if (src.taux) setTauxLocal(String(src.taux));
+      if (src.mini) setMiniLocal(String(src.mini));
     }
   }, [editDay, copyDay]);
 
   function handlePauseChange(val) {
-    // Accepte chaîne vide (en cours de frappe) ou nombre
-    if (val === "" || val === "0" || /^[0-9]+$/.test(val)) {
+    if (val === "" || /^[0-9]+$/.test(val)) {
       setPauseStr(val);
       const n = val === "" ? 0 : parseInt(val);
       if (!isNaN(n)) {
@@ -72,6 +120,10 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
       note: form.note.trim(), clientId: form.clientId,
       taux, mini, pause, htva
     };
+
+    if (form.lieu.trim()) setLieuxHisto(prev => [...new Set([...prev, form.lieu.trim()])]);
+    if (form.trav.trim()) setTravHisto(prev => [...new Set([...prev, form.trav.trim()])]);
+
     if (editDay) {
       onUpdate({ ...jour, id: editDay.id });
       clearEdit();
@@ -124,15 +176,9 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
             <div className="ro">{prev.brut > 0 ? fmMin(prev.brut) : "—"}</div>
           </Field>
           <Field label="⏸️ Pause midi (min)">
-            <input
-              className="inp"
-              type="text"
-              inputMode="numeric"
-              value={pauseStr}
-              placeholder="ex: 30"
-              onChange={e => handlePauseChange(e.target.value)}
-              style={{ background: "#fff8e1", borderColor: "var(--color-secondary)", fontWeight: "600" }}
-            />
+            <input className="inp" type="text" inputMode="numeric" value={pauseStr}
+              placeholder="ex: 30" onChange={e => handlePauseChange(e.target.value)}
+              style={{ background: "#fff8e1", borderColor: "var(--color-secondary)", fontWeight: "600" }} />
           </Field>
           <Field label="H. facturables">
             <div className="ro">{prev.brut > 0 ? fmMin(prev.net) : "—"}</div>
@@ -153,9 +199,9 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-title">👤 Client</div>
-        {clients && clients.length > 0 ? (
+      {clients && clients.length > 0 && (
+        <div className="card">
+          <div className="card-title">👤 Client</div>
           <Field label="Sélectionner un client">
             <select className="inp" value={form.clientId} onChange={e => set("clientId", e.target.value)}>
               <option value="">— Choisir un client —</option>
@@ -164,30 +210,55 @@ export default function Saisie({ cfg, clients, onAdd, onUpdate, editDay, copyDay
               ))}
             </select>
           </Field>
-        ) : (
-          <p style={{ fontSize: "12px", color: "#9a8878" }}>👉 Ajoutez vos clients dans l'onglet ⚙️ Config</p>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="card-title">📍 Chantier</div>
         <div className="g2">
-          <Field label="Lieu / Exploitation"><input className="inp" type="text" value={form.lieu} placeholder="Ferme Dupont – La Chapelle" onChange={e => set("lieu", e.target.value)} /></Field>
-          <Field label="Nature des travaux"><input className="inp" type="text" value={form.trav} placeholder="Labour, fauchage, semis…" onChange={e => set("trav", e.target.value)} /></Field>
+          <Field label="Lieu / Exploitation">
+            <SmartInput className="inp" value={form.lieu}
+              onChange={e => set("lieu", e.target.value)}
+              placeholder="Ferme Dupont – La Chapelle"
+              suggestions={lieuxHisto} />
+          </Field>
+          <Field label="Nature des travaux">
+            <SmartInput className="inp" value={form.trav}
+              onChange={e => set("trav", e.target.value)}
+              placeholder="Labour, fauchage, semis…"
+              suggestions={travHisto} />
+          </Field>
         </div>
         <div style={{ marginTop: "10px" }}>
-          <Field label="Remarques"><input className="inp" type="text" value={form.note} placeholder="Météo, incident, matériel…" onChange={e => set("note", e.target.value)} /></Field>
+          <Field label="Remarques">
+            <input className="inp" type="text" value={form.note}
+              placeholder="Météo, incident, matériel…" onChange={e => set("note", e.target.value)} />
+          </Field>
         </div>
       </div>
 
       <div className="card">
         <div className="card-title">💶 Tarification</div>
         <div className="g3">
-          <Field label="€ / heure"><div className="ro">{cfg.taux||"—"} €/h</div></Field>
-          <Field label="Minimum €/jour"><div className="ro">{cfg.mini||"—"} €</div></Field>
-          <Field label="TVA %"><div className="ro">{cfg.tvap||"21"} %</div></Field>
+          <Field label="€ / heure">
+            <input className="inp" type="text" inputMode="decimal"
+              value={tauxLocal} placeholder={cfg.taux || "35"}
+              onChange={e => setTauxLocal(e.target.value)}
+              style={{ background: "#f0fff4", borderColor: "#5c7a3e", fontWeight: "600" }} />
+          </Field>
+          <Field label="Minimum €/jour">
+            <input className="inp" type="text" inputMode="decimal"
+              value={miniLocal} placeholder={cfg.mini || "150"}
+              onChange={e => setMiniLocal(e.target.value)}
+              style={{ background: "#f0fff4", borderColor: "#5c7a3e", fontWeight: "600" }} />
+          </Field>
+          <Field label="TVA %">
+            <div className="ro">{cfg.tvap||"21"} %</div>
+          </Field>
         </div>
-        <p style={{ fontSize: "11px", color: "#9a8878", marginTop: "8px" }}>👉 Modifiez dans l'onglet ⚙️ Config</p>
+        <p style={{ fontSize: "11px", color: "#9a8878", marginTop: "8px" }}>
+          💡 Tarif modifiable ici pour cette journée — valeur par défaut dans ⚙️ Config
+        </p>
       </div>
 
       <div className="acts">
