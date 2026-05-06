@@ -20,7 +20,7 @@ export const defaultCfg = {
 
 function getDefaultMois() {
   const n = new Date();
-  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`;
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"00")}`;
 }
 
 export function loadLS(key, def) {
@@ -147,8 +147,7 @@ export default function App() {
     };
     const { error } = await supabase.from("journees").insert(row);
     if (error) { showToast("⚠️ Erreur sauvegarde"); return; }
-    const newDays = [...days, jour].sort((a,b) => a.date.localeCompare(b.date));
-    setDays(newDays);
+    setDays([...days, jour].sort((a,b) => a.date.localeCompare(b.date)));
     showToast("✅ Journée ajoutée !");
   }
 
@@ -201,7 +200,6 @@ export default function App() {
 
     await supabase.from("journees").delete().eq("user_id", userId);
     setDays([]);
-
     setArchive([...archive, { mois, label, days: [...days], archivedAt: new Date().toISOString() }]);
 
     const parts = (cfg.fnum || "2025-001").split("-");
@@ -226,222 +224,4 @@ export default function App() {
       setClients(clients.map(c => c.id === client.id ? client : c));
     } else {
       const newId = Date.now();
-      await supabase.from("clients").insert({ id: newId, user_id: userId, nom: client.nom, localite: client.localite, adr1: client.adr1, adr2: client.adr2, tva: client.tva });
-      setClients([...clients, { ...client, id: newId }]);
-    }
-  }
-
-  async function deleteClient(id) {
-    await supabase.from("clients").delete().eq("id", id).eq("user_id", session.user.id);
-    setClients(clients.filter(c => c.id !== id));
-  }
-
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    showToast("👋 Déconnecté");
-  }
-
-  const tabs = [
-    { id: "saisie",     label: "📝 Saisie" },
-    { id: "journal",    label: "📋 Journal" },
-    { id: "facture",    label: "🧾 Facture" },
-    { id: "historique", label: "🗂️ Historique" },
-    { id: "config",     label: "⚙️ Config" },
-  ];
-
-  if (authLoading) return (
-    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:"12px"}}>
-      <div style={{fontSize:"2rem"}}>🌿</div>
-      <div style={{color:"#666"}}>Chargement…</div>
-    </div>
-  );
-
-  if (!session) return <Auth />;
-
-  return (
-    <div className="app">
-      <header className="app-header">
-        <div className="app-logo">
-          {cfg.logo
-            ? <img src={cfg.logo} alt="logo" style={{width:"100%",height:"100%",objectFit:"contain",borderRadius:"10px"}} />
-            : <span>🌿</span>}
-        </div>
-        <div style={{flex:1}}>
-          <h1 className="app-title">FieldLog</h1>
-          <p className="app-sub">Suivi des prestations · Indépendant</p>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
-          {syncing && <span style={{fontSize:"0.75rem",color:"#999"}}>⟳ sync…</span>}
-          <button onClick={handleLogout} style={{background:"none",border:"1px solid #ccc",borderRadius:"6px",padding:"4px 10px",cursor:"pointer",fontSize:"0.8rem",color:"#666"}}>
-            Déconnexion
-          </button>
-        </div>
-      </header>
-
-      <nav className="tab-bar">
-        {tabs.map(t => (
-          <button key={t.id} className={`tab ${tab === t.id ? "on" : ""}`} onClick={() => setTab(t.id)}>{t.label}</button>
-        ))}
-      </nav>
-
-      {tab === "saisie" && (
-        <Saisie cfg={cfg} clients={clients} onAdd={addDay} onUpdate={updateDay}
-          editDay={editDay} copyDay={copyDay}
-          clearEdit={() => { setEditDay(null); setCopyDay(null); }}
-          showToast={showToast} />
-      )}
-      {tab === "journal" && (
-        <Journal days={days} cfg={cfg} clients={clients}
-          onDelete={deleteDay} onClear={clearDays}
-          onFacture={() => setTab("facture")}
-          onEdit={handleEdit} onCopy={handleCopy} onArchiver={archiverMois} />
-      )}
-      {tab === "facture" && <Facture days={days} cfg={cfg} clients={clients} />}
-      {tab === "historique" && <Historique archive={archive} cfg={cfg} clients={clients} />}
-      {tab === "config" && (
-        <Config cfg={cfg} clients={clients} onChange={saveCfg}
-          onSaveClient={saveClient} onDeleteClient={deleteClient} showToast={showToast} />
-      )}
-      <Toast message={toast} />
-    </div>
-  );
-}
-
-function Historique({ archive, cfg, clients }) {
-  const [selected, setSelected] = useState(null);
-  if (!archive.length) {
-    return (
-      <div className="card">
-        <div className="card-title">🗂️ Historique des mois archivés</div>
-        <div className="empty">Aucun mois archivé pour le moment.<br/>Archivez un mois depuis l'onglet 📋 Journal.</div>
-      </div>
-    );
-  }
-  const mois = selected ? archive.find(a => a.mois === selected) : null;
-  return (
-    <div>
-      <div className="card">
-        <div className="card-title">🗂️ Historique des mois archivés</div>
-        <div className="month-filter">
-          {archive.slice().reverse().map(a => (
-            <button key={a.mois} className={`month-btn ${selected === a.mois ? "on" : ""}`}
-              onClick={() => setSelected(selected === a.mois ? null : a.mois)}>
-              {a.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      {mois && <ArchiveMois mois={mois} cfg={cfg} clients={clients} />}
-    </div>
-  );
-}
-
-function ArchiveMois({ mois, cfg, clients }) {
-  const days = mois.days;
-  const tvr = parseFloat(cfg.tvap) || 21;
-  const totalNet  = days.reduce((s,d) => s+d.net,  0);
-  const totalHTVA = days.reduce((s,d) => s+d.htva, 0);
-  const totalTVA  = totalHTVA * tvr / 100;
-  const totalTTC  = totalHTVA + totalTVA;
-  return (
-    <div>
-      <div className="print-banner no-print">
-        <div className="print-banner-title">📄 {mois.label}</div>
-        <p className="print-banner-text"><strong>PC/Mac</strong> : Ctrl+P &nbsp;|&nbsp; <strong>iPhone</strong> : Partager → Imprimer</p>
-        <button className="btn print-btn" onClick={() => window.print()}>🖨️ Imprimer / PDF</button>
-      </div>
-      <div className="facture-zone">
-        <FactureHeader cfg={cfg} />
-        <div className="f-right-block">
-          <div className="f-ref-title">ARCHIVE</div>
-          <div className="f-ref-sub">Période : {mois.label}</div>
-        </div>
-        <hr className="f-divider"/>
-        <FactureTable days={days} clients={clients} totalNet={totalNet} totalHTVA={totalHTVA} />
-        <FactureTotaux totalHTVA={totalHTVA} totalTVA={totalTVA} totalTTC={totalTTC} tvr={tvr} />
-        <FactureFooter cfg={cfg} />
-      </div>
-    </div>
-  );
-}
-
-export function FactureHeader({ cfg }) {
-  return (
-    <div className="f-header">
-      <div className="f-left">
-        {cfg.logo && <img src={cfg.logo} alt="logo" style={{height:"60px",marginBottom:"8px",display:"block"}} />}
-        <div className="f-name">{cfg.nom || "Votre Nom"}</div>
-        <div className="f-tag">{cfg.metier || "Indépendant"}</div>
-        <div className="f-coords">
-          {cfg.adr1  && <span>{cfg.adr1}<br/></span>}
-          {cfg.adr2  && <span>{cfg.adr2}<br/></span>}
-          {cfg.tel   && <span>📞 {cfg.tel}<br/></span>}
-          {cfg.email && <span>✉️ {cfg.email}</span>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function FactureTable({ days, clients, totalNet, totalHTVA }) {
-  return (
-    <table className="f-table">
-      <thead>
-        <tr>
-          <th>Date</th><th>Horaire</th><th>H. nettes</th>
-          <th>Client</th><th>Lieu</th><th>Travaux</th><th>Taux</th><th>HTVA</th>
-        </tr>
-      </thead>
-      <tbody>
-        {days.length ? days.map((d,i) => {
-          const client = clients.find(c => String(c.id) === String(d.clientId));
-          return (
-            <tr key={d.id} style={{background: i%2===0?"#f8f6f0":"#fff"}}>
-              <td>{fmDate(d.date)}</td>
-              <td style={{fontFamily:"monospace"}}>{d.deb}–{d.fin}</td>
-              <td style={{textAlign:"center",fontWeight:"bold"}}>{fmMin(d.net)}</td>
-              <td>{client ? client.nom : "—"}</td>
-              <td>{d.lieu}</td>
-              <td>{d.trav||"—"}</td>
-              <td style={{textAlign:"right"}}>{d.taux?d.taux+"€/h":"—"}</td>
-              <td style={{textAlign:"right",fontWeight:"bold"}}>{d.htva.toFixed(2)} €</td>
-            </tr>
-          );
-        }) : <tr><td colSpan={8} style={{textAlign:"center",color:"#999",padding:"14px"}}>Aucune prestation</td></tr>}
-      </tbody>
-      <tfoot>
-        <tr className="f-total-row">
-          <td colSpan={2}><strong>TOTAUX</strong></td>
-          <td style={{textAlign:"center"}}><strong>{fmMin(totalNet)}</strong></td>
-          <td colSpan={4}></td>
-          <td style={{textAlign:"right"}}><strong>{totalHTVA.toFixed(2)} €</strong></td>
-        </tr>
-      </tfoot>
-    </table>
-  );
-}
-
-export function FactureTotaux({ totalHTVA, totalTVA, totalTTC, tvr }) {
-  return (
-    <div className="f-totals-wrap">
-      <table className="f-totals">
-        <tbody>
-          <tr><td>Total HTVA</td><td>{totalHTVA.toFixed(2)} €</td></tr>
-          <tr><td>TVA {tvr}%</td><td>{totalTVA.toFixed(2)} €</td></tr>
-          <tr className="f-grand"><td><strong>TOTAL TTC</strong></td><td><strong>{totalTTC.toFixed(2)} €</strong></td></tr>
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-export function FactureFooter({ cfg }) {
-  return (
-    <div className="f-footer">
-      {cfg.nom||"—"} · {cfg.metier||"Indépendant"}
-      {cfg.tva ? ` · TVA : ${cfg.tva}` : ""}
-      {cfg.bce ? ` · BCE : ${cfg.bce}` : ""}
-      {" · "}Généré le {todayFr()}
-    </div>
-  );
-}
+      await supabase.from("clients").insert({ id: newId, user_id: userId, nom: client.nom, localite: client.l
